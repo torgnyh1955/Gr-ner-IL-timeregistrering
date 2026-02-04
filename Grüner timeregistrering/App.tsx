@@ -16,7 +16,7 @@ const initialUserInfo: UserInfo = {
 
 const App: React.FC = () => {
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
-  const [selectedYear, setSelectedYear] = useState<number>(2026);
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear() > 2025 ? new Date().getFullYear() : 2026);
   const [resetKey, setResetKey] = useState(0); 
   const [showMailTip, setShowMailTip] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
@@ -24,7 +24,6 @@ const App: React.FC = () => {
   const [userInfo, setUserInfo] = useState<UserInfo>({ ...initialUserInfo });
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
 
-  // Initialiser eller nullstill rader når måned, år eller reset-trigger endres
   useEffect(() => {
     const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
     const newEntries: TimeEntry[] = [];
@@ -79,17 +78,27 @@ const App: React.FC = () => {
 
   const handleDownloadPDF = async () => {
     setIsExporting(true);
-    await downloadPDF(userInfo, selectedMonth, selectedYear, timeEntries);
-    setIsExporting(false);
+    try {
+      await downloadPDF(userInfo, selectedMonth, selectedYear, timeEntries);
+    } catch (error) {
+      console.error("PDF Export failed", error);
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const handleSendEmail = async (type: 'excel' | 'pdf') => {
     setIsExporting(true);
-    await sendEmail(type, userInfo, selectedMonth, selectedYear, timeEntries);
-    setIsExporting(false);
-    if (type === 'pdf') {
-      setShowMailTip(true);
-      setTimeout(() => setShowMailTip(false), 8000);
+    try {
+      await sendEmail(type, userInfo, selectedMonth, selectedYear, timeEntries);
+      if (type === 'pdf') {
+        setShowMailTip(true);
+        setTimeout(() => setShowMailTip(false), 8000);
+      }
+    } catch (error) {
+      console.error("Email send failed", error);
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -116,7 +125,6 @@ const App: React.FC = () => {
         ))}
       </datalist>
 
-      {/* Header */}
       <header className="bg-[#432271] text-white py-8 px-6 shadow-lg mb-8">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-6">
@@ -125,9 +133,6 @@ const App: React.FC = () => {
                 src="https://cdn-bloc.no/background/200000195/9005/2025/10/2/gruner_rgb_u2net.png?maxwidth=600&height=184&quality=90&scale=both" 
                 alt="Grüner IL Logo" 
                 className="h-12 md:h-16 w-auto object-contain"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src = "https://upload.wikimedia.org/wikipedia/en/2/2c/GrunerILlogo.png";
-                }}
               />
             </div>
             <div>
@@ -168,16 +173,6 @@ const App: React.FC = () => {
                   onChange={e => setUserInfo({...userInfo, hourlyRate: parseFloat(e.target.value) || 0})}
                 />
               </div>
-              <div className="flex flex-col bg-white/10 p-3 rounded-xl backdrop-blur-sm border border-white/20">
-                <label className="text-[10px] uppercase font-bold text-violet-200 mb-1">Lønn helg</label>
-                <input 
-                  type="number"
-                  placeholder="Valgfritt"
-                  className="bg-white text-gray-900 px-2 py-1 rounded-lg border-none text-sm w-28 focus:ring-2 focus:ring-violet-400 outline-none font-medium"
-                  value={userInfo.weekendRate === 0 ? '' : userInfo.weekendRate}
-                  onChange={e => setUserInfo({...userInfo, weekendRate: parseFloat(e.target.value) || 0})}
-                />
-              </div>
             </div>
 
             <div className="flex gap-4">
@@ -188,7 +183,6 @@ const App: React.FC = () => {
                   <span className="text-lg font-bold tracking-tight">{formatHours(totalHours)}</span>
                 </div>
               </div>
-
               <div className="flex flex-col bg-white/10 p-3 rounded-xl backdrop-blur-sm border border-white/20 min-w-[120px]">
                 <label className="text-[10px] uppercase font-bold text-violet-200 mb-1">Total lønn</label>
                 <div className="flex items-center gap-1.5 py-0.5">
@@ -212,132 +206,97 @@ const App: React.FC = () => {
           <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <div className="space-y-1">
               <label className="text-sm font-medium text-gray-600 block">Navn</label>
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input 
-                  type="text"
-                  placeholder="Ola Nordmann"
-                  className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#432271] focus:ring-1 focus:ring-[#432271] outline-none transition"
-                  value={userInfo.name}
-                  onChange={e => setUserInfo({...userInfo, name: e.target.value})}
-                />
-              </div>
+              <input 
+                type="text"
+                placeholder="Ola Nordmann"
+                className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#432271] focus:ring-1 focus:ring-[#432271] outline-none"
+                value={userInfo.name}
+                onChange={e => setUserInfo({...userInfo, name: e.target.value})}
+              />
             </div>
-
             <div className="space-y-1">
               <label className="text-sm font-medium text-gray-600 block">Ansattnummer</label>
-              <div className="relative">
-                <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input 
-                  type="text"
-                  placeholder="Eks: 12345"
-                  className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#432271] focus:ring-1 focus:ring-[#432271] outline-none transition"
-                  value={userInfo.employeeId}
-                  onChange={e => setUserInfo({...userInfo, employeeId: e.target.value})}
-                />
-              </div>
+              <input 
+                type="text"
+                placeholder="Eks: 12345"
+                className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#432271] focus:ring-1 focus:ring-[#432271] outline-none"
+                value={userInfo.employeeId}
+                onChange={e => setUserInfo({...userInfo, employeeId: e.target.value})}
+              />
             </div>
-
             <div className="space-y-1">
               <label className="text-sm font-medium text-gray-600 block">E-post</label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input 
-                  type="email"
-                  placeholder="ola@eksempel.no"
-                  className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#432271] focus:ring-1 focus:ring-[#432271] outline-none transition"
-                  value={userInfo.email}
-                  onChange={e => setUserInfo({...userInfo, email: e.target.value})}
-                />
-              </div>
+              <input 
+                type="email"
+                placeholder="ola@eksempel.no"
+                className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#432271] focus:ring-1 focus:ring-[#432271] outline-none"
+                value={userInfo.email}
+                onChange={e => setUserInfo({...userInfo, email: e.target.value})}
+              />
             </div>
-
             <div className="space-y-1">
               <label className="text-sm font-medium text-gray-600 block">Telefonnummer</label>
-              <div className="relative">
-                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input 
-                  type="tel"
-                  placeholder="Eks: 987 65 432"
-                  className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#432271] focus:ring-1 focus:ring-[#432271] outline-none transition"
-                  value={userInfo.phone}
-                  onChange={e => setUserInfo({...userInfo, phone: e.target.value})}
-                />
-              </div>
+              <input 
+                type="tel"
+                placeholder="987 65 432"
+                className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#432271] focus:ring-1 focus:ring-[#432271] outline-none"
+                value={userInfo.phone}
+                onChange={e => setUserInfo({...userInfo, phone: e.target.value})}
+              />
             </div>
-
             <div className="space-y-1">
-              <label className="text-sm font-medium text-gray-600 block">Idrettsgren / Avdeling</label>
-              <div className="relative">
-                <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <select 
-                  className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#432271] focus:ring-1 focus:ring-[#432271] outline-none transition appearance-none bg-white cursor-pointer"
-                  value={userInfo.department}
-                  onChange={e => setUserInfo({...userInfo, department: e.target.value as Department})}
-                >
-                  <option value="" disabled>Velg avdeling...</option>
-                  {Object.values(Department).map(dept => <option key={dept} value={dept}>{dept}</option>)}
-                </select>
-              </div>
+              <label className="text-sm font-medium text-gray-600 block">Avdeling</label>
+              <select 
+                className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#432271] focus:ring-1 focus:ring-[#432271] outline-none bg-white"
+                value={userInfo.department}
+                onChange={e => setUserInfo({...userInfo, department: e.target.value as Department})}
+              >
+                <option value="" disabled>Velg...</option>
+                {Object.values(Department).map(dept => <option key={dept} value={dept}>{dept}</option>)}
+              </select>
             </div>
-
             <div className="space-y-1">
               <label className="text-sm font-medium text-gray-600 block">Kontonummer</label>
-              <div className="relative">
-                <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input 
-                  type="text"
-                  placeholder="1234 56 78901"
-                  className={`w-full pl-10 pr-4 py-2.5 rounded-lg border focus:ring-1 outline-none transition ${userInfo.accountNumber && !isAccountNumberValid ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : 'border-gray-200 focus:border-[#432271] focus:ring-[#432271]'}`}
-                  value={userInfo.accountNumber}
-                  onChange={handleAccountNumberChange}
-                />
-              </div>
+              <input 
+                type="text"
+                placeholder="1234 56 78901"
+                className={`w-full px-4 py-2.5 rounded-lg border focus:ring-1 outline-none ${userInfo.accountNumber && !isAccountNumberValid ? 'border-red-300' : 'border-gray-200'}`}
+                value={userInfo.accountNumber}
+                onChange={handleAccountNumberChange}
+              />
             </div>
           </div>
         </section>
 
         <section className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           <div className="bg-gray-50 px-6 py-4 border-b border-gray-100">
-            <div className="flex items-center gap-2">
-              <Calendar className="w-5 h-5 text-[#432271]" />
-              <h2 className="font-semibold text-gray-800 uppercase tracking-wide text-sm">Timeliste - {MONTHS[selectedMonth]}</h2>
-            </div>
+            <h2 className="font-semibold text-gray-800 uppercase tracking-wide text-sm">Timeliste - {MONTHS[selectedMonth]}</h2>
           </div>
-
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="bg-gray-50/50 text-left text-xs uppercase font-bold text-gray-500 tracking-wider">
-                  <th className="px-6 py-4 w-28 border-b">Dato</th>
-                  <th className="px-6 py-4 w-28 border-b">Ukedag</th>
-                  <th className="px-6 py-4 w-32 border-b text-center">Timer/Økt</th>
-                  <th className="px-6 py-4 border-b">Aktivitet</th>
-                  <th className="px-6 py-4 w-32 border-b text-right">Beløp</th>
+            <table className="w-full text-left">
+              <thead className="bg-gray-50/50 text-xs font-bold text-gray-500 uppercase tracking-wider">
+                <tr>
+                  <th className="px-6 py-4 w-28">Dato</th>
+                  <th className="px-6 py-4 w-28">Ukedag</th>
+                  <th className="px-6 py-4 w-32 text-center">Timer</th>
+                  <th className="px-6 py-4">Aktivitet</th>
+                  <th className="px-6 py-4 w-32 text-right">Beløp</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {timeEntries.map((entry, index) => {
                   const dayNum = entry.date.getDay();
-                  const dayName = WEEKDAYS[dayNum];
                   const isWeekend = dayNum === 0 || dayNum === 6;
                   const currentRate = isWeekend ? (userInfo.weekendRate || userInfo.hourlyRate) : userInfo.hourlyRate;
-                  const rowAmount = entry.hours * currentRate;
-                  
                   return (
-                    <tr key={`${index}`} className={`hover:bg-gray-50 transition ${isWeekend ? 'bg-gray-50/30' : ''}`}>
-                      <td className="px-6 py-3 text-sm font-medium text-gray-700">
-                        {entry.date.getDate()}. {MONTHS[selectedMonth].substring(0, 3)}
-                      </td>
-                      <td className={`px-6 py-3 text-sm ${isWeekend ? 'text-red-500 font-semibold' : 'text-gray-500 font-medium'}`}>
-                        {dayName}
-                      </td>
+                    <tr key={index} className={isWeekend ? 'bg-gray-50/30' : ''}>
+                      <td className="px-6 py-3 text-sm">{entry.date.getDate()}. {MONTHS[selectedMonth].substring(0, 3)}</td>
+                      <td className={`px-6 py-3 text-sm ${isWeekend ? 'text-red-500 font-bold' : ''}`}>{WEEKDAYS[dayNum]}</td>
                       <td className="px-6 py-2">
                         <input 
-                          list="hour-options"
                           type="text"
                           inputMode="decimal"
-                          className="w-24 mx-auto block px-3 py-1.5 rounded-md border border-gray-200 text-center focus:ring-1 focus:ring-violet-400 outline-none hover:border-gray-300 transition"
+                          className="w-20 mx-auto block px-2 py-1.5 rounded-md border border-gray-200 text-center"
                           value={entry.hours === 0 ? '' : entry.hours.toString().replace('.', ',')}
                           placeholder="0,0"
                           onChange={e => handleHourChange(index, e.target.value)}
@@ -345,19 +304,15 @@ const App: React.FC = () => {
                       </td>
                       <td className="px-6 py-2">
                         <select 
-                          className="w-full px-3 py-1.5 rounded-md border border-transparent hover:border-gray-200 focus:border-gray-200 focus:bg-white focus:ring-1 focus:ring-violet-400 outline-none transition bg-transparent text-sm appearance-none cursor-pointer"
+                          className="w-full px-2 py-1.5 border border-transparent hover:border-gray-200 rounded-md bg-transparent text-sm"
                           value={entry.description}
                           onChange={e => handleDescriptionChange(index, e.target.value)}
                         >
-                          <option value="">Velg aktivitet...</option>
-                          {Object.values(ActivityType).map(type => (
-                            <option key={type} value={type}>{type}</option>
-                          ))}
+                          <option value="">Velg...</option>
+                          {Object.values(ActivityType).map(t => <option key={t} value={t}>{t}</option>)}
                         </select>
                       </td>
-                      <td className="px-6 py-3 text-right text-sm font-semibold text-gray-700">
-                        {entry.hours > 0 ? formatCurrency(rowAmount) : '—'}
-                      </td>
+                      <td className="px-6 py-3 text-right text-sm font-semibold">{entry.hours > 0 ? formatCurrency(entry.hours * currentRate) : '—'}</td>
                     </tr>
                   );
                 })}
@@ -366,63 +321,25 @@ const App: React.FC = () => {
           </div>
         </section>
 
-        {/* Actions Section */}
-        <section className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm mb-12 relative overflow-hidden">
+        <section className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm relative overflow-hidden">
           <div className="absolute top-0 left-0 w-2 h-full bg-[#432271]"></div>
-          
-          <div className="flex flex-col gap-8">
-            <div className="max-w-3xl">
-              <h3 className="font-bold text-[#432271] text-xl mb-2 flex items-center gap-2">
-                <Info className="w-5 h-5" />
-                Ferdig med utfylling?
-              </h3>
-              <p className="text-gray-600 text-sm leading-relaxed">
-                Vennligst kontroller at alle felter er utfylt korrekt. Du kan laste ned filene til din maskin, eller sende PDF-en direkte til administrasjonen via e-post.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 w-full">
-              <button 
-                onClick={() => exportToExcel(userInfo, selectedMonth, selectedYear, timeEntries)}
-                disabled={!isFormValid || isExporting}
-                className={`${buttonBaseClass} bg-white text-[#432271] border-2 border-violet-100 hover:bg-violet-50 hover:border-[#432271]`}
-              >
-                <Download className="w-5 h-5" /> Last ned Excel
-              </button>
-
-              <button 
-                onClick={handleDownloadPDF}
-                disabled={!isFormValid || isExporting}
-                className={`${buttonBaseClass} bg-[#432271] text-white hover:bg-[#341b58]`}
-              >
-                <Download className="w-5 h-5" /> {isExporting ? 'Genererer...' : 'Last ned PDF'}
-              </button>
-
-              <button 
-                onClick={() => handleSendEmail('pdf')}
-                disabled={!isFormValid || isExporting}
-                className={`${buttonBaseClass} bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-200`}
-              >
-                <Send className="w-5 h-5" /> {isExporting ? 'Lagrer fil...' : 'Send til ebilag'}
-              </button>
-            </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <button onClick={() => exportToExcel(userInfo, selectedMonth, selectedYear, timeEntries)} disabled={!isFormValid || isExporting} className={`${buttonBaseClass} bg-white text-[#432271] border-2 border-violet-100`}>
+              <Download className="w-5 h-5" /> Excel
+            </button>
+            <button onClick={handleDownloadPDF} disabled={!isFormValid || isExporting} className={`${buttonBaseClass} bg-[#432271] text-white`}>
+              <Download className="w-5 h-5" /> {isExporting ? '...' : 'PDF'}
+            </button>
+            <button onClick={() => handleSendEmail('pdf')} disabled={!isFormValid || isExporting} className={`${buttonBaseClass} bg-emerald-600 text-white`}>
+              <Send className="w-5 h-5" /> Send til ebilag
+            </button>
           </div>
-
-          {showMailTip && (
-            <div className="absolute top-4 right-8 bg-emerald-600 text-white px-6 py-3 rounded-xl shadow-xl flex items-center gap-3 animate-in fade-in slide-in-from-top-4 duration-500 z-50">
-              <Info className="w-5 h-5" />
-              <span className="text-sm font-bold">PDF er lagret! Husk å legge den ved i e-posten.</span>
-            </div>
-          )}
         </section>
       </main>
 
       {!isFormValid && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-amber-50 border border-amber-200 text-amber-800 px-8 py-4 rounded-full shadow-2xl flex items-center gap-3 animate-pulse z-50">
-          <div className="bg-amber-100 p-1 rounded-full">
-            <Info className="w-4 h-4" />
-          </div>
-          <span className="text-sm font-bold">Fyll ut ansattinfo (inkl. 11 siffer kontonr) og lønnssats</span>
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-amber-50 border border-amber-200 text-amber-800 px-6 py-3 rounded-full shadow-lg z-50 text-sm font-bold flex items-center gap-2">
+          <Info className="w-4 h-4" /> Fyll ut ansattinfo og 11 siffer kontonr
         </div>
       )}
     </div>
